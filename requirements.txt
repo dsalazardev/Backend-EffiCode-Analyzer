@@ -1,11 +1,4 @@
-# Para el análisis de la gramática del pseudocódigo
-lark
-
-# Para la comunicación con la API de Google Gemini
-google-generativeai
-
-# Para cargar variables de entorno como la API Key desde el archivo .env
 python-dotenv
-
-# Para el manejo de matemática simbólica en el análisis de complejidad
+lark
 sympy
+google-genai>=1.0.0
