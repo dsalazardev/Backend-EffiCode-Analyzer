@@ -5,29 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6ec8a5b5-8cf4-41b2-9957-56c2f8ae3477" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/EffiCode Analyzer.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/EffiCode Analyzer.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.ask.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.ask2agent.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.ask2agent.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Enumerations/tipoAlgoritmo.py" beforeDir="false" afterPath="$PROJECT_DIR$/Enumerations/tipoAlgoritmo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Algoritmo.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Algoritmo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Analizador.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Analizador.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Complejidad.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Complejidad.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Parser.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Reporte.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Reporte.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Modelos/Usuario.py" beforeDir="false" afterPath="$PROJECT_DIR$/Modelos/Usuario.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Servicios/Ast.py" beforeDir="false" afterPath="$PROJECT_DIR$/Servicios/Ast.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Servicios/EfficiencyVisitor.py" beforeDir="false" afterPath="$PROJECT_DIR$/Servicios/EfficiencyVisitor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Servicios/Grammar.py" beforeDir="false" afterPath="$PROJECT_DIR$/Servicios/Grammar.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Servicios/LLMService.py" beforeDir="false" afterPath="$PROJECT_DIR$/Servicios/LLMService.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -260,7 +238,7 @@
       <workItem from="1760913154543" duration="656000" />
       <workItem from="1760921391234" duration="16000" />
       <workItem from="1760972395752" duration="1110000" />
-      <workItem from="1760977099014" duration="2456000" />
+      <workItem from="1760977099014" duration="3519000" />
     </task>
     <servers />
   </component>
