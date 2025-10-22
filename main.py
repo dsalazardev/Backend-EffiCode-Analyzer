@@ -44,20 +44,16 @@ def ejecutar_analisis_completo():
         ast_obj = parser.parsear(pseudocodigo)
         print("✅ AST generado con éxito.\n")
 
-        # Mostrar grafo estructurado en consola
         print("--- Grafo del algoritmo (estructura JSON) ---")
         print(json.dumps(ast_obj.to_dict(), indent=4))
 
-        # Crear el objeto Algoritmo y asignarle el AST
         algoritmo = Algoritmo(id=1, codigo_fuente=pseudocodigo, tipo_algoritmo=TipoAlgoritmo.ITERATIVO)
         algoritmo.addAST(ast_obj)
 
-        # Generar y guardar el grafo visual
         print("\n--- [PASO 2.1] Generando grafo visual del AST... ---")
         generar_grafo_ast(ast_obj)
         print("✅ Grafo visual generado y guardado como 'grafo_ast.png'.")
 
-        # Ejecutar el análisis de eficiencia
         print("\n--- [PASO 3] Ejecutando análisis de eficiencia matemática... ---")
         resultado_complejidad = analizador.analizar(algoritmo)
         print("✅ Análisis completado.")
@@ -79,7 +75,7 @@ def generar_grafo_ast(ast_obj):
     graph = pydot.Dot("AST", graph_type="digraph", rankdir="TB")
 
     def agregar_nodo(nodo, padre=None):
-        # Si el nodo es un diccionario con un tipo
+
         if isinstance(nodo, dict):
             label = nodo.get("_type", str(type(nodo)))
             current_node = pydot.Node(id(nodo), label=label, shape="box", style="rounded,filled", fillcolor="#E3F2FD")
@@ -88,24 +84,20 @@ def generar_grafo_ast(ast_obj):
             if padre:
                 graph.add_edge(pydot.Edge(id(padre), id(nodo)))
 
-            # Recorremos todos los valores del diccionario
             for k, v in nodo.items():
                 if isinstance(v, (dict, list)):
                     agregar_nodo(v, nodo)
 
-        # Si el nodo es una lista, recorrer los elementos
         elif isinstance(nodo, list):
             for elemento in nodo:
                 agregar_nodo(elemento, padre)
 
-        # Si el nodo es un valor simple, lo agregamos como hoja
         else:
             leaf_node = pydot.Node(id(nodo), label=str(nodo), shape="ellipse", fillcolor="#FFF9C4", style="filled")
             graph.add_node(leaf_node)
             if padre:
                 graph.add_edge(pydot.Edge(id(padre), id(nodo)))
 
-    # Llamada inicial
     agregar_nodo(ast_obj.to_dict() if hasattr(ast_obj, "to_dict") else ast_obj)
     graph.write_png("grafo_ast.png")
     print("✅ Grafo visual generado como 'grafo_ast.png'")

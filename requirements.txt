@@ -2,3 +2,5 @@ python-dotenv
 lark
 sympy
 google-genai>=1.0.0
+pydot
+graphviz
