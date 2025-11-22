@@ -1,0 +1,64 @@
+// QUICKSORT (Capítulo 7, Cormen)
+// Adaptado a tu Grammar.py
+
+// --- Procedimiento PARTITION ---
+// Define la función antes de usarla
+PARTITION(A, p, r)
+    x ← A[r]
+    i ← p - 1
+
+    for j ← p to r - 1 do
+        if A[j] ≤ x then
+            i ← i + 1
+            // exchange A[i] with A[j]
+            temp ← A[i]
+            A[i] ← A[j]
+            A[j] ← temp
+
+    // exchange A[i+1] with A[r]
+    temp ← A[i + 1]
+    A[i + 1] ← A[r]
+    A[r] ← temp
+
+    return i + 1
+
+// --- Algoritmo principal QUICKSORT ---
+QUICKSORT(A, p, r)
+    if p < r then
+        q ← PARTITION(A, p, r) // Llamada directa (sin 'CALL')
+        QUICKSORT(A, p, q - 1)
+        QUICKSORT(A, q + 1, r)
+
+------------------------------------------------------------------------------------------
+
+// BURBUJA-SORT (Ordenamiento Burbuja)
+// 100% Iterativo (usa 'downto')
+
+BURBUJA-SORT(A, n)
+    for i ← 1 to n - 1 do
+        for j ← n downto i + 1 do
+            if A[j] < A[j-1] then
+                // Intercambiar A[j] con A[j-1]
+                temp ← A[j]
+                A[j] ← A[j-1]
+                A[j-1] ← temp
+
+
+------------------------------------------------------------------------------------------
+
+// SELECTION-SORT (Ordenamiento por Selección, Cap 2)
+// 100% Iterativo (dos bucles 'for' anidados)
+
+SELECTION-SORT(A, n)
+    for i ← 1 to n - 1 do
+        smallest ← i
+
+        // Bucle interno para encontrar el mínimo
+        for j ← i + 1 to n do
+            if A[j] < A[smallest] then
+                smallest ← j
+
+        // Intercambiar A[i] con A[smallest]
+        temp ← A[i]
+        A[i] ← A[smallest]
+        A[smallest] ← temp
