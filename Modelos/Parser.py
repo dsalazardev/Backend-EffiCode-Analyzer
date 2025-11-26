@@ -173,11 +173,23 @@ class Parser:
     def _translate_line(self, line: str) -> str:
         """Traduce una línea individual de pseudocódigo a Python."""
         
-        # Reemplazar operadores especiales primero
+        # Normalizar operadores de asignación (<- y ←)
+        line = line.replace('<-', '←')
+        
+        # Reemplazar operadores especiales
         line = line.replace('≤', '<=')
         line = line.replace('≥', '>=')
         line = line.replace('≠', '!=')
         line = line.replace('←', '=')
+        
+        # Reemplazar guiones en propiedades de objetos (A.heap-size → A.heap_size)
+        line = re.sub(r'\.(\w+)-(\w+)', r'.\1_\2', line)
+        
+        # EXCHANGE A[i] WITH A[j] → intercambio con tuplas
+        match = re.match(r'^exchange\s+(.+?)\s+with\s+(.+?)\s*$', line, re.IGNORECASE)
+        if match:
+            a, b = match.groups()
+            return f'{a.strip()}, {b.strip()} = {b.strip()}, {a.strip()}'
         
         # FOR ... TO ... DO (ascendente)
         match = re.match(
@@ -188,7 +200,6 @@ class Parser:
             var, start, end = match.groups()
             start = start.strip()
             end = end.strip()
-            # Ajustar para Python (range es exclusivo en el límite superior)
             return f'for {var} in range({start}, {end} + 1):'
         
         # FOR ... DOWNTO ... DO (descendente)
@@ -200,7 +211,6 @@ class Parser:
             var, start, end = match.groups()
             start = start.strip()
             end = end.strip()
-            # range(start, end-1, -1) para incluir end
             return f'for {var} in range({start}, {end} - 1, -1):'
         
         # WHILE ... DO
@@ -209,15 +219,36 @@ class Parser:
             condition = match.group(1).strip()
             return f'while {condition}:'
         
-        # IF ... THEN
+        # IF ... THEN (con then explícito)
         match = re.match(r'^if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
         if match:
             condition = match.group(1).strip()
             return f'if {condition}:'
         
+        # IF ... (sin then - detectar si la condición termina sin otra palabra clave)
+        # Solo si la línea empieza con "if" y no tiene "then"
+        match = re.match(r'^if\s+(.+?)\s*$', line, re.IGNORECASE)
+        if match and 'then' not in line.lower():
+            condition = match.group(1).strip()
+            # Evitar falsos positivos si termina en una asignación
+            if '=' not in condition or '<=' in condition or '>=' in condition or '!=' in condition or '==' in condition:
+                return f'if {condition}:'
+        
         # ELSE IF ... THEN
-        match = re.match(r'^else\s+if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
+        match = re.match(r'^else\s*if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
         if match:
+            condition = match.group(1).strip()
+            return f'elif {condition}:'
+        
+        # ELSEIF / ELSIF (variantes sin espacio)
+        match = re.match(r'^(?:elseif|elsif)\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
+        if match:
+            condition = match.group(1).strip()
+            return f'elif {condition}:'
+        
+        # ELSE IF ... (sin then)
+        match = re.match(r'^else\s*if\s+(.+?)\s*$', line, re.IGNORECASE)
+        if match and 'then' not in line.lower():
             condition = match.group(1).strip()
             return f'elif {condition}:'
         
@@ -225,7 +256,7 @@ class Parser:
         if line.lower().strip() == 'else':
             return 'else:'
         
-        # RETURN
+        # RETURN con expresión
         match = re.match(r'^return\s+(.+)$', line, re.IGNORECASE)
         if match:
             expr = match.group(1).strip()
@@ -236,7 +267,6 @@ class Parser:
             return 'return'
         
         # Llamada a función sola en la línea (ej: QUICKSORT(A, p, q - 1))
-        # Esto es una LLAMADA, no una declaración
         match = re.match(r'^([A-Z][A-Z0-9_-]*)\s*\((.+)\)\s*$', line)
         if match:
             func_name = match.group(1).replace('-', '_').lower()
@@ -244,7 +274,6 @@ class Parser:
             return f'{func_name}({args})'
         
         # Convertir llamadas a funciones en MAYÚSCULAS dentro de expresiones
-        # (ej: q = PARTITION(A, p, r) → q = partition(A, p, r))
         def replace_func_call(m):
             func_name = m.group(1).replace('-', '_').lower()
             args = m.group(2)
