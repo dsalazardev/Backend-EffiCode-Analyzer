@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from Modelos.Complejidad import Complejidad
     from Modelos.Algoritmo import Algoritmo
 
-
 class LLMService:
 
     """
@@ -42,7 +41,7 @@ class LLMService:
     _RUTA_LIBRO = _ROOT / "Documentos" / "Introduction_to_Algorithms_by_Thomas_H_Coremen.pdf"
     _CACHE_FILE = _ROOT / "cache_file.json"
 
-    def __init__(self, modelo: str = "gemini-2.5-pro"):
+    def __init__(self, modelo: str = "gemini-2.5-flash"):
 
         """
         Inicializa el servicio LLM, configura el cliente de la API y gestiona la carga
@@ -60,7 +59,6 @@ class LLMService:
         self._analizador: Optional[Analizador] = None
 
         self._libro_contexto_file = self._gestionar_cache_libro()
-
 
     def _gestionar_cache_libro(self) -> File:
 
@@ -97,7 +95,6 @@ class LLMService:
 
         return self._subir_y_guardar_libro_en_cache()
 
-
     def _cargar_cache(self) -> Optional[dict]:
 
         """Carga los datos del archivo de caché si existe."""
@@ -106,7 +103,6 @@ class LLMService:
             with self._CACHE_FILE.open('r') as f:
                 return json.load(f)
         return None
-
 
     def _subir_y_guardar_libro_en_cache(self) -> File:
 
@@ -154,7 +150,6 @@ class LLMService:
         except Exception as e:
             raise RuntimeError(f"Error fatal al subir o guardar el libro: {str(e)}")
 
-
     def _ejecutar_prompt_con_contexto(self, prompt: str) -> str:
 
         """Función auxiliar que siempre incluye el libro como contexto."""
@@ -170,7 +165,6 @@ class LLMService:
             err_msg = f"Error al contactar la API de Gemini: {e}"
             print(err_msg)
             return f"# Error: {err_msg}"
-
 
     def traducir_pseudocodigo_a_python(self, pseudocodigo: str) -> str:
 
@@ -196,7 +190,6 @@ class LLMService:
         codigo_generado = self._ejecutar_prompt_con_contexto(prompt)
         return codigo_generado.replace("```python", "").replace("```", "").strip()
 
-
     def traducir_natural_a_pseudocodigo(self, texto: str) -> str:
 
         """Usa el LLM para convertir lenguaje natural a pseudocódigo estilo Cormen."""
@@ -219,7 +212,6 @@ class LLMService:
                     """
         return self._ejecutar_prompt_con_contexto(prompt)
 
-
     def validar_analisis(self, complejidad: Complejidad, pseudocodigo: str) -> str:
 
         """Pide al LLM que valide un análisis de complejidad, usando el libro como referencia."""
@@ -234,7 +226,6 @@ class LLMService:
                 **Pseudocódigo:**
                 {pseudocodigo}
 
-
                 **Análisis Propuesto:**
                 - O(n): {complejidad.notacion_o}
                 - Ω(n): {complejidad.notacion_omega}
@@ -243,7 +234,6 @@ class LLMService:
                 **Tu Respuesta:** Proporciona una segunda opinión experta y concisa. Confirma si es correcto o explica claramente cualquier error o matiz, citando conceptos del libro si es relevante.
                 """
         return self._ejecutar_prompt_con_contexto(prompt)
-
 
     def clasificar_patron(self, algoritmo: Algoritmo) -> str:
 
@@ -259,9 +249,22 @@ class LLMService:
                 **Pseudocódigo:**
                 {algoritmo.codigo_fuente}
 
-
                 **Instrucciones:** Responde únicamente con el nombre del patrón (ej: 'Divide and conquer', 'Dynamic programming', 'Greedy algorithm').
                  Sé específico. Ejemplos: 'Divide y Vencerás', 'Programación Dinámica', 'Algoritmo Voraz'.
                  Si no identificas un patrón claro, responde 'No se identifica un patrón estándar'.
                 """
         return self._ejecutar_prompt_con_contexto(prompt)
+    
+    def analizar_complejidad(self, prompt: str) -> str:
+        """
+        Analiza ecuaciones de recurrencia usando el LLM.
+        """
+        try:
+            response = self.client.models.generate_content(
+                model=self._modelo,
+                contents=[self._libro_contexto_file, prompt]
+            )
+            return response.text.strip()
+        except Exception as e:
+            print(f"❌ Error en análisis de complejidad con LLM: {e}")
+            raise

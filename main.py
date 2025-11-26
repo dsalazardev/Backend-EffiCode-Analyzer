@@ -12,7 +12,6 @@ from Modelos.Reporte import Reporte
 from Modelos.Parser import Parser
 from Modelos.Analizador import Analizador
 
-
 def ejecutar_analisis_completo():
     print("--- [PASO 0] Inicializando servicios de EffiCode Analyzer ---")
     load_dotenv()
@@ -26,6 +25,61 @@ def ejecutar_analisis_completo():
         print(f"❌ Error fatal al inicializar los servicios: {e}")
         return
 
+    '''pseudocodigo =  """
+    MERGE-SORT(A, p, r)
+        if p < r then
+            q ← (p + r) div 2 
+            MERGE-SORT(A, p, q)
+            MERGE-SORT(A, q + 1, r)
+            MERGE(A, p, q, r)
+    """'''
+
+    '''pseudocodigo = """
+        BINARY-SEARCH(A, low, high, x)
+            if low > high then
+                return NIL
+            mid ← floor((low + high) / 2)
+            if x = A[mid] then
+                return mid
+            else if x < A[mid] then
+                return BINARY-SEARCH(A, low, mid - 1, x)
+            else
+                return BINARY-SEARCH(A, mid + 1, high, x)
+    """'''
+
+    '''pseudocodigo = """
+    FACTORIAL(n)
+        if n = 0 then
+            return 1
+        else
+            return n * FACTORIAL(n - 1)
+    """'''
+
+    '''pseudocodigo = """
+    FIBONACCI(n)
+        if n ≤ 1 then
+            return n
+        return FIBONACCI(n-1) + FIBONACCI(n-2)
+    """'''
+
+    '''pseudocodigo = """
+    HANOI(n, origen, auxiliar, destino)
+        if n = 1 then
+            mover(origen, destino)           
+        else
+            HANOI(n-1, origen, destino, auxiliar)
+            mover(origen, destino)           
+            HANOI(n-1, auxiliar, origen, destino)
+    """'''
+
+    '''pseudocodigo = """
+    LINEAR-SEARCH(A, x)
+        for i ← 1 to A.length do
+            if A[i] = x then
+                return i
+        return NIL
+    """'''
+
     pseudocodigo = """
     INSERTION-SORT(A, n)
         for j ← 2 to n do
@@ -36,6 +90,19 @@ def ejecutar_analisis_completo():
                 i ← i - 1
             A[i+1] ← key
     """
+
+
+    pseudocodigo = """
+    POWER(x, n)
+        if n = 0 then
+            return 1
+        if n mod 2 = 0 then
+            y ← POWER(x, n div 2)
+            return y * y
+        else
+            return x * POWER(x, n - 1)
+    """
+
     print("\n--- [PASO 1] Analizando el siguiente Pseudocódigo ---")
     print(pseudocodigo)
 
@@ -47,7 +114,7 @@ def ejecutar_analisis_completo():
         print("--- Grafo del algoritmo (estructura JSON) ---")
         print(json.dumps(ast_obj.to_dict(), indent=4))
 
-        algoritmo = Algoritmo(id=1, codigo_fuente=pseudocodigo, tipo_algoritmo=TipoAlgoritmo.ITERATIVO)
+        algoritmo = Algoritmo(id=1, codigo_fuente=pseudocodigo, tipo_algoritmo=TipoAlgoritmo.RECURSIVO)
         algoritmo.addAST(ast_obj)
 
         print("\n--- [PASO 2.1] Generando grafo visual del AST... ---")
@@ -55,7 +122,7 @@ def ejecutar_analisis_completo():
         print("✅ Grafo visual generado y guardado como 'grafo_ast.png'.")
 
         print("\n--- [PASO 3] Ejecutando análisis de eficiencia matemática... ---")
-        resultado_complejidad = analizador.analizar(algoritmo)
+        resultado_complejidad = analizador.analizar_recursivo(algoritmo)
         print("✅ Análisis completado.")
 
         reporte = Reporte(id=1, algoritmo_analizado=algoritmo, resultado_complejidad=resultado_complejidad)
@@ -68,7 +135,6 @@ def ejecutar_analisis_completo():
 
     except (SyntaxError, ConnectionError, ValueError, RuntimeError) as e:
         print(f"❌ ERROR en el proceso de análisis: {e}")
-
 
 def generar_grafo_ast(ast_obj):
     """Genera una imagen del grafo del AST de Python usando pydot y graphviz."""
@@ -102,7 +168,6 @@ def generar_grafo_ast(ast_obj):
     graph.write_png("grafo_ast.png")
     print("✅ Grafo visual generado como 'grafo_ast.png'")
 
-
 def imprimir_reporte(reporte: Reporte):
     """Función auxiliar para mostrar el reporte de forma clara."""
     print("\n" + "="*70)
@@ -124,7 +189,6 @@ def imprimir_reporte(reporte: Reporte):
     print("-" * 70)
     print(reporte.validacion_llm)
     print("="*70)
-
 
 if __name__ == "__main__":
     ejecutar_analisis_completo()
