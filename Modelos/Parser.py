@@ -108,6 +108,7 @@ class Parser:
         - x ← expr  →  x = expr
         - return expr  →  return expr
         - // comentarios  →  # comentarios
+        - FUNC(args) llamadas  →  func(args)
         - Operadores: ≤ → <=, ≥ → >=, ≠ → !=, and/or/not
         - A[i] acceso a arrays (se mantiene)
         """
@@ -124,24 +125,47 @@ class Parser:
                 python_lines.append('')
                 continue
             
-            # Comentarios
+            # Comentarios en línea completa
             if stripped.startswith('//'):
                 python_lines.append(' ' * original_indent + '#' + stripped[2:])
                 continue
             
-            # Ignorar declaraciones de función (NOMBRE-FUNCION(params))
-            if re.match(r'^[A-Z][A-Z0-9_-]*\s*\([^)]*\)\s*$', stripped):
-                # Es una declaración de función, la convertimos a def
-                match = re.match(r'^([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)\s*$', stripped)
-                if match:
-                    func_name = match.group(1).replace('-', '_').lower()
-                    params = match.group(2)
-                    python_lines.append(' ' * original_indent + f'def {func_name}({params}):')
+            # Separar comentarios inline (// ...) del código
+            code_part = stripped
+            comment_part = ''
+            if '//' in stripped:
+                idx = stripped.index('//')
+                code_part = stripped[:idx].strip()
+                comment_part = '  #' + stripped[idx+2:]
+            
+            # Si solo quedó comentario, continuar
+            if not code_part:
+                python_lines.append(' ' * original_indent + comment_part.strip())
                 continue
             
-            # Traducir la línea
-            translated = self._translate_line(stripped)
-            python_lines.append(' ' * original_indent + translated)
+            # Detectar declaración de función vs llamada a función
+            # REGLA SIMPLE: Solo es DECLARACIÓN si está en indentación 0 (inicio de línea)
+            # Cualquier NOMBRE(args) con indentación es una LLAMADA
+            func_pattern = r'^([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)\s*$'
+            match = re.match(func_pattern, code_part)
+            
+            if match:
+                func_name = match.group(1).replace('-', '_').lower()
+                params = match.group(2)
+                
+                if original_indent == 0:
+                    # Declaración de función (sin indentación)
+                    python_lines.append(f'def {func_name}({params}):')
+                else:
+                    # Llamada a función (tiene indentación)
+                    python_lines.append(' ' * original_indent + f'{func_name}({params})' + comment_part)
+                continue
+            
+            # Traducir la línea de código
+            translated = self._translate_line(code_part)
+            
+            # Agregar comentario inline si existe
+            python_lines.append(' ' * original_indent + translated + comment_part)
         
         # Limpiar y normalizar indentación
         return self._normalize_indentation(python_lines)
@@ -191,6 +215,12 @@ class Parser:
             condition = match.group(1).strip()
             return f'if {condition}:'
         
+        # ELSE IF ... THEN
+        match = re.match(r'^else\s+if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
+        if match:
+            condition = match.group(1).strip()
+            return f'elif {condition}:'
+        
         # ELSE (solo)
         if line.lower().strip() == 'else':
             return 'else:'
@@ -201,17 +231,26 @@ class Parser:
             expr = match.group(1).strip()
             return f'return {expr}'
         
-        # Llamadas a funciones en mayúscula (ej: PARTITION(A, p, r))
-        # Convertir a minúscula con guiones bajos
+        # RETURN sin valor
+        if line.lower().strip() == 'return':
+            return 'return'
+        
+        # Llamada a función sola en la línea (ej: QUICKSORT(A, p, q - 1))
+        # Esto es una LLAMADA, no una declaración
+        match = re.match(r'^([A-Z][A-Z0-9_-]*)\s*\((.+)\)\s*$', line)
+        if match:
+            func_name = match.group(1).replace('-', '_').lower()
+            args = match.group(2)
+            return f'{func_name}({args})'
+        
+        # Convertir llamadas a funciones en MAYÚSCULAS dentro de expresiones
+        # (ej: q = PARTITION(A, p, r) → q = partition(A, p, r))
         def replace_func_call(m):
             func_name = m.group(1).replace('-', '_').lower()
             args = m.group(2)
             return f'{func_name}({args})'
         
         line = re.sub(r'\b([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)', replace_func_call, line)
-        
-        # Asignación simple (ya convertida ← a =)
-        # No necesita más procesamiento
         
         return line
 
