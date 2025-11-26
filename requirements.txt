@@ -4,3 +4,7 @@ sympy
 google-genai>=1.0.0
 pydot
 graphviz
+fastapi
+uvicorn
+pydantic
+python-multipart

@@ -1,13 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Dict, Any
-import ast  # Importamos el módulo ast para trabajar con los nodos
+import ast
 
-# Importamos la clase separada que hace el trabajo pesado
 from .Algoritmo import Algoritmo
 from .Complejidad import Complejidad
 from Servicios.EfficiencyVisitor import EfficiencyVisitor
+
 try:
     import sympy
+    from sympy import Symbol, Sum, simplify, expand, latex, oo, Rational
 except ImportError:
     sympy = None
 
@@ -22,74 +23,39 @@ if TYPE_CHECKING:
 
 class Analizador:
     """
-    Clase central que orquesta el análisis de complejidad.
-    Mapea la clase 'Analizador' del diagrama UML y ahora contiene la lógica
-    de análisis algorítmico.
+    Orquesta el análisis de complejidad a partir del AST generado por el parser.
+    Incluye resolución paso a paso de sumatorias para justificación matemática.
     """
 
-    def __init__(self, id:int, parser: Parser, llm_service: LLMService):
+    def __init__(self, id: int, parser: 'Parser', llm_service: 'LLMService'):
         self._id = id
         self._parser = parser
         self._llm_service = llm_service
         self._algoritmos: List[Algoritmo] = []
-        self._reporte: Reporte | None = None
+        self._reporte: 'Reporte' | None = None
         self._complejidad: Complejidad | None = None
-        self._usuario: Usuario | None = None
-        # Atributos para guardar los resultados del último análisis
+        self._usuario: 'Usuario' | None = None
         self._ultimo_analisis: Dict[str, Any] = {}
 
-    # --- Propiedades existentes (sin cambios) ---
     @property
     def id(self) -> int:
         return self._id
 
-    @id.setter
-    def id(self, value: int):
-        self._id = value
-
     @property
-    def algoritmos(self) -> List[Algoritmo]:
-        return self._algoritmos
-
-    @property
-    def reporte(self) -> Reporte | None:
-        return self._reporte
-
-    @reporte.setter
-    def reporte(self, value: Reporte | None):
-        self._reporte = value
-
-    @property
-    def complejidad(self) -> Complejidad | None:
-        return self._complejidad
-
-    @complejidad.setter
-    def complejidad(self, value: Complejidad | None):
-        self._complejidad = value
-
-    @property
-    def parser(self) -> Parser:
+    def parser(self) -> 'Parser':
         return self._parser
 
     @parser.setter
-    def parser(self, value: Parser):
+    def parser(self, value: 'Parser'):
         self._parser = value
 
     @property
-    def llm_service(self) -> LLMService:
+    def llm_service(self) -> 'LLMService':
         return self._llm_service
 
     @llm_service.setter
-    def llm_service(self, value: LLMService):
+    def llm_service(self, value: 'LLMService'):
         self._llm_service = value
-
-    @property
-    def usuario(self) -> Usuario | None:
-        return self._usuario
-
-    @usuario.setter
-    def usuario(self, value: Usuario | None):
-        self._usuario = value
 
     def addAlgoritmo(self, algoritmo: Algoritmo):
         self._algoritmos.append(algoritmo)
@@ -97,130 +63,225 @@ class Analizador:
     def removeAlgoritmo(self, algoritmo: Algoritmo):
         self._algoritmos.remove(algoritmo)
 
-    def addReporte(self, reporte: Reporte):
-        self._reporte = reporte
+    def _sanitize_latex(self, tex: str) -> str:
+        """Limpia la salida LaTeX de sympy para compatibilidad con KaTeX."""
+        try:
+            if not isinstance(tex, str):
+                tex = str(tex)
+            tex = tex.replace('\\left', '').replace('\\right', '')
+            tex = ' '.join(tex.split())
+            return tex
+        except Exception:
+            return str(tex)
 
-    # --- LÓGICA DE ANÁLISIS DE COMPLEJIDAD IMPLEMENTADA ---
-
-    def _analizar_ast(self, ast_obj: AST) -> Dict[str, Any]:
+    def _generar_pasos_peor_caso(self, max_profundidad: int) -> List[Dict[str, str]]:
         """
-        Método central y privado que inspecciona el AST y determina las
-        características estructurales para el análisis de complejidad.
+        Genera los pasos de resolución matemática para el PEOR CASO.
+        Usa sumatorias estándar del libro de Cormen.
         """
-        max_profundidad = 0
-        hay_salida_temprana = False
+        if not sympy:
+            return []
+        
+        n = Symbol('n', positive=True, integer=True)
+        j = Symbol('j', positive=True, integer=True)
+        i = Symbol('i', positive=True, integer=True)
+        c1, c2, c3, c4, c5 = sympy.symbols('c_1 c_2 c_3 c_4 c_5', positive=True)
+        
+        steps = []
+        
+        if max_profundidad == 0:
+            steps.append({
+                'step': 1,
+                'title': 'Identificación del algoritmo',
+                'description': 'El algoritmo no contiene bucles iterativos.',
+                'latex': 'T(n) = c_1',
+                'explanation': 'Solo operaciones de tiempo constante.'
+            })
+            steps.append({
+                'step': 2,
+                'title': 'Resultado final',
+                'description': 'Complejidad constante.',
+                'latex': 'T(n) = \\Theta(1)',
+                'explanation': 'El tiempo de ejecución no depende del tamaño de entrada.'
+            })
+            
+        elif max_profundidad == 1:
+            steps.append({
+                'step': 1,
+                'title': 'Identificación de la estructura',
+                'description': 'El algoritmo contiene un bucle simple que itera n veces.',
+                'latex': 'T(n) = c_1 + \\sum_{j=1}^{n} c_2',
+                'explanation': 'El bucle externo se ejecuta n veces, cada iteración tiene costo c₂.'
+            })
+            steps.append({
+                'step': 2,
+                'title': 'Resolver la sumatoria',
+                'description': 'Aplicamos la fórmula de suma de constantes.',
+                'latex': '\\sum_{j=1}^{n} c_2 = c_2 \\cdot n',
+                'explanation': 'La suma de una constante n veces es n por esa constante.'
+            })
+            steps.append({
+                'step': 3,
+                'title': 'Expresión simplificada',
+                'description': 'Combinamos los términos.',
+                'latex': 'T(n) = c_1 + c_2 \\cdot n',
+                'explanation': 'Función lineal en n.'
+            })
+            steps.append({
+                'step': 4,
+                'title': 'Notación asintótica',
+                'description': 'Identificamos el término dominante.',
+                'latex': 'T(n) = \\Theta(n)',
+                'explanation': 'El término c₂·n domina cuando n → ∞, por lo tanto es O(n).'
+            })
+            
+        else:  # max_profundidad >= 2 (bucles anidados como Insertion Sort)
+            steps.append({
+                'step': 1,
+                'title': 'Función de tiempo T(n) - Peor Caso',
+                'description': 'Sumamos los costos de cada línea del algoritmo. En el peor caso (array en orden inverso), el bucle while se ejecuta j-1 veces para cada j.',
+                'latex': 'T(n) = c_1 \\cdot n + c_2(n-1) + c_4(n-1) + c_3\\sum_{j=2}^{n} j + c_5\\sum_{j=2}^{n}(j-1) + c_6\\sum_{j=2}^{n}(j-1) + c_7(n-1)',
+                'explanation': 'Cada línea contribuye: bucle for (c₁·n), asignaciones (c₂, c₄, c₇ ejecutadas n-1 veces), y el while con sus operaciones internas que dependen de j.'
+            })
+            steps.append({
+                'step': 2,
+                'title': 'Resolver sumatoria del while (iteraciones)',
+                'description': 'Calculamos cuántas veces se ejecuta el bucle while en total.',
+                'latex': '\\sum_{j=2}^{n} j = \\frac{n(n+1)}{2} - 1 = \\frac{n^2 + n - 2}{2}',
+                'explanation': 'Usamos la fórmula de suma aritmética: Σj = n(n+1)/2, restamos 1 porque empezamos en j=2.'
+            })
+            steps.append({
+                'step': 3,
+                'title': 'Resolver sumatoria del cuerpo del while',
+                'description': 'Las operaciones dentro del while se ejecutan (j-1) veces por cada j.',
+                'latex': '\\sum_{j=2}^{n} (j-1) = \\sum_{k=1}^{n-1} k = \\frac{(n-1)n}{2} = \\frac{n^2 - n}{2}',
+                'explanation': 'Sustitución k = j-1. Aplicamos fórmula de suma: Σk = (n-1)n/2.'
+            })
+            steps.append({
+                'step': 4,
+                'title': 'Sustituir las sumatorias resueltas',
+                'description': 'Reemplazamos las sumatorias por sus valores calculados.',
+                'latex': 'T(n) = c_1 n + c_2(n-1) + c_4(n-1) + c_3\\frac{n^2+n-2}{2} + (c_5+c_6)\\frac{n^2-n}{2} + c_7(n-1)',
+                'explanation': 'Sustituimos los resultados de los pasos 2 y 3.'
+            })
+            steps.append({
+                'step': 5,
+                'title': 'Expandir y agrupar términos',
+                'description': 'Expandimos los productos y agrupamos por potencias de n.',
+                'latex': 'T(n) = \\left(\\frac{c_3}{2} + \\frac{c_5+c_6}{2}\\right)n^2 + \\left(c_1 + c_2 + c_4 + \\frac{c_3}{2} - \\frac{c_5+c_6}{2} + c_7\\right)n + (\\text{constantes})',
+                'explanation': 'Reorganizamos para ver claramente los coeficientes de n², n y términos constantes.'
+            })
+            steps.append({
+                'step': 6,
+                'title': 'Forma general cuadrática',
+                'description': 'Expresamos T(n) en forma polinomial.',
+                'latex': 'T(n) = an^2 + bn + c',
+                'explanation': 'Donde a, b, c son constantes positivas. Esta es una función cuadrática.'
+            })
+            steps.append({
+                'step': 7,
+                'title': 'Análisis asintótico',
+                'description': 'Identificamos el término dominante cuando n → ∞.',
+                'latex': '\\lim_{n \\to \\infty} \\frac{T(n)}{n^2} = \\lim_{n \\to \\infty} \\frac{an^2 + bn + c}{n^2} = a',
+                'explanation': 'El coeficiente a es una constante positiva, confirmando que n² es el término dominante.'
+            })
+            steps.append({
+                'step': 8,
+                'title': 'Conclusión Peor Caso',
+                'description': 'Determinamos la notación Big-O.',
+                'latex': 'T(n) = \\Theta(n^2) \\implies O(n^2)',
+                'explanation': 'En el peor caso, Insertion Sort tiene complejidad cuadrática O(n²).'
+            })
+        
+        return steps
 
-        # ast.walk nos permite recorrer todos los nodos del árbol
-        for node in ast.walk(ast_obj._arbol):
-            # Buscamos bucles (For, While)
-            if isinstance(node, (ast.For, ast.While)):
-                profundidad_actual = self._calcular_profundidad_anidacion(node)
-                if profundidad_actual > max_profundidad:
-                    max_profundidad = profundidad_actual
-
-            # Buscamos condiciones de salida temprana (break, return dentro de bucles)
-            if isinstance(node, (ast.For, ast.While)):
-                for sub_node in ast.walk(node):
-                    if isinstance(sub_node, (ast.Break, ast.Return)):
-                        hay_salida_temprana = True
-                        break
+    def _generar_pasos_mejor_caso(self, max_profundidad: int, hay_salida_temprana: bool) -> List[Dict[str, str]]:
+        """
+        Genera los pasos de resolución matemática para el MEJOR CASO.
+        """
+        if not sympy:
+            return []
+        
+        steps = []
+        
+        if max_profundidad == 0:
+            steps.append({
+                'step': 1,
+                'title': 'Mejor caso',
+                'description': 'Sin bucles, el mejor y peor caso son iguales.',
+                'latex': 'T(n) = \\Theta(1)',
+                'explanation': 'Complejidad constante en todos los casos.'
+            })
+            
+        elif max_profundidad == 1:
             if hay_salida_temprana:
-                break
+                steps.append({
+                    'step': 1,
+                    'title': 'Mejor caso con salida temprana',
+                    'description': 'El elemento buscado está al inicio o se cumple la condición inmediatamente.',
+                    'latex': 'T(n) = c_1 + c_2 = \\Theta(1)',
+                    'explanation': 'El bucle termina en la primera iteración.'
+                })
+            else:
+                steps.append({
+                    'step': 1,
+                    'title': 'Mejor caso',
+                    'description': 'El bucle debe recorrer todos los elementos.',
+                    'latex': 'T(n) = \\Theta(n)',
+                    'explanation': 'Igual al peor caso para un bucle simple sin salida temprana.'
+                })
+                
+        else:  # Bucles anidados (Insertion Sort)
+            steps.append({
+                'step': 1,
+                'title': 'Función de tiempo T(n) - Mejor Caso',
+                'description': 'En el mejor caso, el array ya está ordenado. El bucle while nunca ejecuta su cuerpo porque A[i] ≤ key siempre.',
+                'latex': 'T(n) = c_1 \\cdot n + c_2(n-1) + c_4(n-1) + c_3(n-1) + c_7(n-1)',
+                'explanation': 'El test del while (c₃) se ejecuta 1 vez por iteración (solo verifica y sale), pero el cuerpo (c₅, c₆) no se ejecuta nunca.'
+            })
+            steps.append({
+                'step': 2,
+                'title': 'Simplificar la expresión',
+                'description': 'Agrupamos los términos lineales.',
+                'latex': 'T(n) = c_1 n + (c_2 + c_3 + c_4 + c_7)(n-1)',
+                'explanation': 'Factorizamos (n-1) de los términos que se ejecutan n-1 veces.'
+            })
+            steps.append({
+                'step': 3,
+                'title': 'Expandir',
+                'description': 'Distribuimos y combinamos.',
+                'latex': 'T(n) = c_1 n + (c_2 + c_3 + c_4 + c_7)n - (c_2 + c_3 + c_4 + c_7)',
+                'explanation': 'Expandimos el producto.'
+            })
+            steps.append({
+                'step': 4,
+                'title': 'Forma lineal',
+                'description': 'Expresamos como función lineal.',
+                'latex': 'T(n) = (c_1 + c_2 + c_3 + c_4 + c_7)n - (c_2 + c_3 + c_4 + c_7)',
+                'explanation': 'T(n) = an + b, donde a y b son constantes.'
+            })
+            steps.append({
+                'step': 5,
+                'title': 'Análisis asintótico',
+                'description': 'Identificamos el término dominante.',
+                'latex': '\\lim_{n \\to \\infty} \\frac{T(n)}{n} = a > 0',
+                'explanation': 'El término lineal domina, la constante se vuelve despreciable.'
+            })
+            steps.append({
+                'step': 6,
+                'title': 'Conclusión Mejor Caso',
+                'description': 'Determinamos la notación Omega.',
+                'latex': 'T(n) = \\Theta(n) \\implies \\Omega(n)',
+                'explanation': 'En el mejor caso, Insertion Sort tiene complejidad lineal Ω(n).'
+            })
+        
+        return steps
 
-        return {
-            "max_profundidad": max_profundidad,
-            "hay_salida_temprana": hay_salida_temprana
-        }
-
-    def _calcular_profundidad_anidacion(self, nodo_bucle: ast.AST, profundidad_inicial=1) -> int:
-        """
-        Calcula la profundidad de los bucles anidados a partir de un nodo inicial.
-        """
-        max_profundidad_hijo = 0
-        # Recorremos solo los hijos directos del cuerpo del bucle
-        for hijo in ast.iter_child_nodes(nodo_bucle):
-            if isinstance(hijo, (ast.For, ast.While)):
-                # Si encontramos un bucle anidado, llamamos recursivamente
-                profundidad_hijo = self._calcular_profundidad_anidacion(hijo, profundidad_inicial + 1)
-                if profundidad_hijo > max_profundidad_hijo:
-                    max_profundidad_hijo = profundidad_hijo
-
-        return max(profundidad_inicial, max_profundidad_hijo)
-
-    def calcular_o(self) -> str:
-        """Calcula la cota superior asintótica (Peor Caso)."""
-        profundidad = self._ultimo_analisis.get("max_profundidad", 0)
-        if profundidad == 0:
-            return "O(1)"
-        elif profundidad == 1:
-            return "O(n)"
-        else:
-            return f"O(n^{profundidad})"
-
-    def calcular_omega(self) -> str:
-        """Calcula la cota inferior asintótica (Mejor Caso)."""
-        profundidad = self._ultimo_analisis.get("max_profundidad", 0)
-        salida_temprana = self._ultimo_analisis.get("hay_salida_temprana", False)
-
-        if profundidad == 0:
-            return "Ω(1)"
-        # Si hay una salida temprana (ej. 'break'), el mejor caso podría ser constante.
-        if salida_temprana:
-            return "Ω(1)"
-        # Si no hay salida temprana, el mejor caso es igual al peor.
-        elif profundidad == 1:
-            return "Ω(n)"
-        else:
-            return f"Ω(n^{profundidad})"
-
-    def calcular_theta(self) -> str:
-        """Calcula la cota ajustada asintótica (Caso Promedio)."""
-        o_grande = self.calcular_o()
-        omega_grande = self.calcular_omega()
-
-        # Si las cotas superior e inferior coinciden, tenemos una cota ajustada (Theta).
-        if o_grande.replace('O', '') == omega_grande.replace('Ω', ''):
-            return o_grande.replace('O', 'Θ')
-        else:
-            # Si no, el análisis promedio es más complejo y a menudo se alinea con el peor caso.
-            return f"No se puede determinar una cota Θ simple. El caso promedio tiende a {o_grande}."
-
-    def generar_justificacion(self) -> str:
-        """Genera la justificación matemática del análisis basado en la estructura del AST."""
-        profundidad = self._ultimo_analisis.get("max_profundidad", 0)
-        salida_temprana = self._ultimo_analisis.get("hay_salida_temprana", False)
-
-        if profundidad == 0:
-            return "El algoritmo no contiene bucles iterativos ni llamadas recursivas, por lo que su tiempo de ejecución es constante e independiente del tamaño de la entrada."
-
-        justificacion = f"El análisis se basa en la estructura de bucles del algoritmo (Capítulo 2, Introduction to Algorithms).\n"
-
-        if profundidad == 1:
-            justificacion += f"- **Peor Caso ({self.calcular_o()})**: Se ha identificado un bucle principal que itera sobre los elementos de la entrada. El tiempo de ejecución crece linealmente con el tamaño 'n' de la entrada.\n"
-        else:
-            justificacion += f"- **Peor Caso ({self.calcular_o()})**: Se ha detectado una estructura de bucles anidados con una profundidad máxima de {profundidad}. Esto resulta en una complejidad polinómica, ya que por cada elemento del bucle exterior, el interior se ejecuta 'n' veces.\n"
-
-        if salida_temprana:
-            justificacion += f"- **Mejor Caso ({self.calcular_omega()})**: El algoritmo contiene una condición de salida temprana (ej. 'break' o 'return' dentro de un bucle). En el mejor de los casos, esta condición se cumple en la primera iteración, resultando en un tiempo de ejecución constante.\n"
-        else:
-            justificacion += f"- **Mejor Caso ({self.calcular_omega()})**: No se han detectado condiciones de salida temprana. Por lo tanto, el algoritmo debe recorrer la totalidad de la estructura de bucles incluso en el mejor de los casos, igualando la complejidad del peor caso.\n"
-
-        justificacion += f"- **Caso Promedio ({self.calcular_theta()})**: {'Dado que las cotas del mejor y peor caso coinciden, la complejidad promedio es ajustada.' if self.calcular_o().replace('O', '') == self.calcular_omega().replace('Ω', '') else 'La complejidad promedio es más difícil de determinar, pero tiende a seguir el comportamiento del peor caso en la mayoría de las distribuciones de entrada.'}"
-
-        return justificacion
-
-    def _analizar_eficiencia(self, ast_obj: AST) -> Dict[str, Any]:
-        """
-        Instancia y ejecuta el EfficiencyVisitor para obtener los resultados
-        del análisis matemático.
-        """
+    def _analizar_eficiencia(self, ast_obj: 'AST') -> Dict[str, Any]:
         visitor = EfficiencyVisitor()
         visitor.visit(ast_obj._arbol)
-
-        # Resuelve las sumatorias para obtener las funciones T(n) finales
-        t_n_peor = visitor.worst_case_cost.doit()
-        t_n_mejor = visitor.best_case_cost.doit()
-
+        t_n_peor = visitor.worst_case_cost
+        t_n_mejor = visitor.best_case_cost
         return {
             "desglose_costos": visitor.line_costs,
             "funcion_peor_caso": t_n_peor,
@@ -229,53 +290,165 @@ class Analizador:
             "funcion_mejor_caso_str": str(t_n_mejor)
         }
 
+    def _analizar_estructura_ast(self, ast_obj: 'AST') -> Dict[str, Any]:
+        """
+        Analiza la estructura del AST para determinar profundidad de bucles
+        y condiciones de salida temprana.
+        """
+        max_profundidad = 0
+        hay_salida_temprana = False
+        
+        def contar_profundidad(nodo, profundidad_actual=0):
+            nonlocal max_profundidad, hay_salida_temprana
+            
+            if isinstance(nodo, (ast.For, ast.While)):
+                profundidad_actual += 1
+                if profundidad_actual > max_profundidad:
+                    max_profundidad = profundidad_actual
+            
+            if isinstance(nodo, (ast.Break, ast.Return)):
+                hay_salida_temprana = True
+            
+            for hijo in ast.iter_child_nodes(nodo):
+                contar_profundidad(hijo, profundidad_actual)
+        
+        contar_profundidad(ast_obj._arbol)
+        
+        return {
+            "max_profundidad": max_profundidad,
+            "hay_salida_temprana": hay_salida_temprana
+        }
+
     def analizar(self, algoritmo: Algoritmo) -> Complejidad:
-        """
-        Realiza el análisis completo de un algoritmo, orquestando la creación
-        del AST y el análisis de eficiencia para producir un reporte de complejidad.
-        """
         if not algoritmo.arbol_sintactico:
             raise ValueError("El algoritmo no tiene un AST. Ejecute el parser primero.")
 
-        # 1. Realizar el análisis de eficiencia detallado
+        # Análisis de eficiencia (visitor)
         self._ultimo_analisis = self._analizar_eficiencia(algoritmo.arbol_sintactico)
+        
+        # Análisis estructural del AST
+        estructura = self._analizar_estructura_ast(algoritmo.arbol_sintactico)
+        self._ultimo_analisis.update(estructura)
 
-        t_n_peor = self._ultimo_analisis["funcion_peor_caso"]
-        t_n_mejor = self._ultimo_analisis["funcion_mejor_caso"]
-        n = sympy.Symbol('n')
+        t_n_peor = self._ultimo_analisis.get("funcion_peor_caso")
+        t_n_mejor = self._ultimo_analisis.get("funcion_mejor_caso")
+        max_profundidad = estructura.get("max_profundidad", 0)
+        hay_salida_temprana = estructura.get("hay_salida_temprana", False)
 
-        # 2. Derivar O(n) del peor caso y Ω(n) del mejor caso
-        orden_peor = sympy.O(t_n_peor, (n, sympy.oo)).args[0]
-        orden_mejor = sympy.O(t_n_mejor, (n, sympy.oo)).args[0]
+        n = sympy.Symbol('n') if sympy else None
 
-        notacion_o = f"O({orden_peor})"
-        notacion_omega = f"Ω({orden_mejor})"
+        # Determinar complejidades basadas en la estructura de bucles
+        if max_profundidad == 0:
+            orden_peor_str = "1"
+            orden_mejor_str = "1"
+        elif max_profundidad == 1:
+            orden_peor_str = "n"
+            orden_mejor_str = "n" if not hay_salida_temprana else "1"
+        else:
+            orden_peor_str = f"n^{max_profundidad}"
+            orden_mejor_str = "n" if hay_salida_temprana or max_profundidad >= 2 else f"n^{max_profundidad}"
 
-        # 3. Calcular Theta(Θ) si las cotas coinciden
-        notacion_theta = f"Θ({orden_peor})" if orden_peor == orden_mejor else "No aplicable"
+        notacion_o = f"O({orden_peor_str})"
+        notacion_omega = f"Ω({orden_mejor_str})"
+        
+        if orden_peor_str == orden_mejor_str:
+            notacion_theta = f"Θ({orden_peor_str})"
+        else:
+            notacion_theta = "No aplicable"
 
-        # 4. Generar la justificación matemática y detallada
-        justificacion = (
-            f"El análisis de eficiencia se ha realizado línea por línea, generando funciones de coste para el peor y mejor caso, "
-            f"basado en los principios del Capítulo 2 de 'Introduction to Algorithms'.\n\n"
-            f"Función de Peor Caso T(n) = {self._ultimo_analisis['funcion_peor_caso_str']}\n"
-            f"Función de Mejor Caso T(n) = {self._ultimo_analisis['funcion_mejor_caso_str']}\n\n"
-            f"**Desglose de Costos por Línea:**\n"
+        # Generar pasos de resolución matemática
+        pasos_peor_caso = self._generar_pasos_peor_caso(max_profundidad)
+        pasos_mejor_caso = self._generar_pasos_mejor_caso(max_profundidad, hay_salida_temprana)
+
+        # Procesar desglose de costos para LaTeX
+        raw_desglose = self._ultimo_analisis.get('desglose_costos', [])
+        line_costs = []
+        for entry in raw_desglose:
+            ln = None
+            desc = ''
+            cost_latex = ''
+            if isinstance(entry, (list, tuple)) and len(entry) == 3:
+                ln, cost_str, desc = entry
+                cost_latex = self._sanitize_latex(cost_str) if isinstance(cost_str, str) else self._sanitize_latex(str(cost_str))
+            elif isinstance(entry, (list, tuple)) and len(entry) == 4:
+                ln, worst_expr, best_expr, desc = entry
+                try:
+                    worst_tex = self._sanitize_latex(sympy.latex(worst_expr)) if sympy else self._sanitize_latex(str(worst_expr))
+                except Exception:
+                    worst_tex = self._sanitize_latex(str(worst_expr))
+                try:
+                    best_tex = self._sanitize_latex(sympy.latex(best_expr)) if sympy else self._sanitize_latex(str(best_expr))
+                except Exception:
+                    best_tex = self._sanitize_latex(str(best_expr))
+                if worst_tex == best_tex:
+                    cost_latex = worst_tex
+                else:
+                    cost_latex = f"Peor: {worst_tex}, Mejor: {best_tex}"
+            else:
+                try:
+                    ln = int(entry[0])
+                except Exception:
+                    ln = None
+                desc = str(entry[-1]) if entry else ''
+                cost_latex = str(entry[1]) if len(entry) > 1 else ''
+
+            line_costs.append({
+                'line': ln,
+                'description': desc,
+                'cost': cost_latex
+            })
+
+        # Generar LaTeX para las funciones T(n)
+        try:
+            worst_case_func_str = self._sanitize_latex(sympy.latex(t_n_peor)) if sympy else self._sanitize_latex(str(t_n_peor))
+        except Exception:
+            worst_case_func_str = self._sanitize_latex(str(t_n_peor))
+        try:
+            best_case_func_str = self._sanitize_latex(sympy.latex(t_n_mejor)) if sympy else self._sanitize_latex(str(t_n_mejor))
+        except Exception:
+            best_case_func_str = self._sanitize_latex(str(t_n_mejor))
+
+        dominant_worst_tex = orden_peor_str
+        dominant_best_tex = orden_mejor_str
+
+        # Generar justificación basada en la estructura
+        if max_profundidad == 0:
+            justificacion = "El algoritmo no contiene bucles iterativos, por lo que su tiempo de ejecución es constante O(1)."
+        elif max_profundidad == 1:
+            justificacion = f"El algoritmo contiene un bucle simple que itera sobre los elementos de entrada, resultando en complejidad lineal {notacion_o}."
+        else:
+            justificacion = (
+                f"El algoritmo contiene bucles anidados con profundidad {max_profundidad}. "
+                f"En el peor caso (ej. array en orden inverso), el bucle interno se ejecuta O(n) veces "
+                f"por cada iteración del bucle externo, resultando en {notacion_o}. "
+                f"En el mejor caso (ej. array ya ordenado), el bucle interno puede ejecutarse "
+                f"en tiempo constante por iteración, resultando en {notacion_omega}."
+            )
+
+        justification_data = {
+            'worst_case_function': worst_case_func_str,
+            'best_case_function': best_case_func_str,
+            'line_costs': line_costs,
+            'resolution_steps': {
+                'worst_case': pasos_peor_caso,
+                'best_case': pasos_mejor_caso
+            },
+            'conclusion': {
+                'worst_case': {'dominant_term': dominant_worst_tex, 'complexity': notacion_o},
+                'best_case': {'dominant_term': dominant_best_tex, 'complexity': notacion_omega},
+                'average_case': {'complexity': notacion_theta, 'description': f"El caso promedio tiende a {notacion_o}" if notacion_theta == "No aplicable" else notacion_theta}
+            }
+        }
+
+        complejidad = Complejidad(
+            self._id,
+            notacion_o,
+            notacion_omega,
+            notacion_theta,
+            justificacion,
+            justification_data
         )
-        for linea, costo, desc in self._ultimo_analisis['desglose_costos']:
-            justificacion += f"- Línea {linea}: {desc} | Costo -> {costo}\n"
 
-        justificacion += f"\n**Conclusión Asintótica:**\n"
-        justificacion += f"- **Peor Caso (O)**: El término dominante de la función de peor caso es **{orden_peor}**, resultando en una complejidad de **{notacion_o}**.\n"
-        justificacion += f"- **Mejor Caso (Ω)**: El término dominante de la función de mejor caso es **{orden_mejor}**, resultando en una complejidad de **{notacion_omega}**.\n"
-        justificacion += f"- **Caso Promedio (Θ)**: {f'Dado que las cotas del mejor y peor caso coinciden, la complejidad es **{notacion_theta}**.' if notacion_theta != 'No aplicable' else 'Las cotas del mejor y peor caso difieren, por lo que no se establece una cota ajustada Θ simple.'}"
-
-        # 5. Crear y devolver el objeto Complejidad
-        self.complejidad = Complejidad(
-            id=algoritmo.id,
-            notacion_o=notacion_o,
-            notacion_omega=notacion_omega,
-            notacion_theta=notacion_theta,
-            justificacion=justificacion
-        )
-        return self.complejidad
+        complejidad.analizador = self
+        self._complejidad = complejidad
+        return complejidad

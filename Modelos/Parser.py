@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+import re
 
 from Servicios.Grammar import Grammar
 from Servicios.LLMService import LLMService
@@ -58,8 +59,9 @@ class Parser:
     def parsear(self, pseudocodigo: str) -> AST:
         """
         Convierte el pseudocódigo en un Árbol de Sintaxis Abstracta (AST) de Python.
-        El proceso implica validar la sintaxis del pseudocódigo, traducirlo a
-        Python usando un LLM y finalmente, parsear ese código Python a un AST.
+        
+        ESTRATEGIA: Usa un traductor LOCAL robusto primero, sin depender del LLM.
+        El LLM solo se usa como validación opcional.
 
         Args:
             pseudocodigo (str): El código fuente en pseudocódigo estilo Cormen.
@@ -69,23 +71,184 @@ class Parser:
 
         Raises:
             SyntaxError: Si la sintaxis del pseudocódigo es inválida o si el
-                         código Python generado por el LLM es inválido.
-            ConnectionError: Si hay un problema con el servicio de traducción del LLM.
+                         código Python generado es inválido.
         """
-        # 1. Validar la sintaxis usando el servicio de Gramática
-        if not self.validar_sintaxis(pseudocodigo):
-            raise SyntaxError("Error de sintaxis: El pseudocódigo no es válido según la gramática.")
+        # 1. Validar la sintaxis usando el servicio de Gramática (opcional, puede ser flexible)
+        # No bloqueamos si falla, intentamos traducir de todos modos
+        syntax_valid = self.validar_sintaxis(pseudocodigo)
+        if not syntax_valid:
+            print("⚠️  Advertencia: El pseudocódigo puede no cumplir estrictamente la gramática Cormen.")
 
-        # 2. Traducir a Python usando el servicio LLM
-        codigo_python = self._llm_service.traducir_pseudocodigo_a_python(pseudocodigo)
-        if not codigo_python or "# Error" in codigo_python:
-            raise ConnectionError(f"Error de traducción: El servicio LLM falló. Detalles: {codigo_python}")
+        # 2. Traducir a Python usando el traductor LOCAL (no depende de LLM)
+        codigo_python = self._translate_pseudocode_to_python(pseudocodigo)
+        
+        if not codigo_python or not codigo_python.strip():
+            raise SyntaxError("Error: No se pudo traducir el pseudocódigo a Python.")
+
+        print(f"--- Código Python generado ---\n{codigo_python}\n--- Fin código Python ---")
 
         # 3. Parsear el código Python y devolver el objeto AST
         try:
             ast_obj = AST(codigo_python)
             return ast_obj
         except SyntaxError as e:
-            # Este error ocurre si el LLM devuelve código Python que no es sintácticamente correcto
             raise SyntaxError(
-                f"El código generado por el LLM no es válido. Error: {e}\nCódigo recibido:\n{codigo_python}")
+                f"El código Python generado no es válido. Error: {e}\nCódigo generado:\n{codigo_python}")
+
+    def _translate_pseudocode_to_python(self, pseudocodigo: str) -> str:
+        """
+        Traductor LOCAL robusto de pseudocódigo Cormen a Python.
+        
+        Soporta:
+        - for i ← start to end do  →  for i in range(start-1, end):
+        - for i ← start downto end do  →  for i in range(start, end-1, -1):
+        - while cond do  →  while cond:
+        - if cond then  →  if cond:
+        - else  →  else:
+        - x ← expr  →  x = expr
+        - return expr  →  return expr
+        - // comentarios  →  # comentarios
+        - Operadores: ≤ → <=, ≥ → >=, ≠ → !=, and/or/not
+        - A[i] acceso a arrays (se mantiene)
+        """
+        lines = pseudocodigo.split('\n')
+        python_lines = []
+        
+        for line in lines:
+            # Preservar indentación original
+            original_indent = len(line) - len(line.lstrip())
+            stripped = line.strip()
+            
+            # Línea vacía
+            if not stripped:
+                python_lines.append('')
+                continue
+            
+            # Comentarios
+            if stripped.startswith('//'):
+                python_lines.append(' ' * original_indent + '#' + stripped[2:])
+                continue
+            
+            # Ignorar declaraciones de función (NOMBRE-FUNCION(params))
+            if re.match(r'^[A-Z][A-Z0-9_-]*\s*\([^)]*\)\s*$', stripped):
+                # Es una declaración de función, la convertimos a def
+                match = re.match(r'^([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)\s*$', stripped)
+                if match:
+                    func_name = match.group(1).replace('-', '_').lower()
+                    params = match.group(2)
+                    python_lines.append(' ' * original_indent + f'def {func_name}({params}):')
+                continue
+            
+            # Traducir la línea
+            translated = self._translate_line(stripped)
+            python_lines.append(' ' * original_indent + translated)
+        
+        # Limpiar y normalizar indentación
+        return self._normalize_indentation(python_lines)
+
+    def _translate_line(self, line: str) -> str:
+        """Traduce una línea individual de pseudocódigo a Python."""
+        
+        # Reemplazar operadores especiales primero
+        line = line.replace('≤', '<=')
+        line = line.replace('≥', '>=')
+        line = line.replace('≠', '!=')
+        line = line.replace('←', '=')
+        
+        # FOR ... TO ... DO (ascendente)
+        match = re.match(
+            r'^for\s+(\w+)\s*=\s*(.+?)\s+to\s+(.+?)\s+do\s*$',
+            line, re.IGNORECASE
+        )
+        if match:
+            var, start, end = match.groups()
+            start = start.strip()
+            end = end.strip()
+            # Ajustar para Python (range es exclusivo en el límite superior)
+            return f'for {var} in range({start}, {end} + 1):'
+        
+        # FOR ... DOWNTO ... DO (descendente)
+        match = re.match(
+            r'^for\s+(\w+)\s*=\s*(.+?)\s+downto\s+(.+?)\s+do\s*$',
+            line, re.IGNORECASE
+        )
+        if match:
+            var, start, end = match.groups()
+            start = start.strip()
+            end = end.strip()
+            # range(start, end-1, -1) para incluir end
+            return f'for {var} in range({start}, {end} - 1, -1):'
+        
+        # WHILE ... DO
+        match = re.match(r'^while\s+(.+?)\s+do\s*$', line, re.IGNORECASE)
+        if match:
+            condition = match.group(1).strip()
+            return f'while {condition}:'
+        
+        # IF ... THEN
+        match = re.match(r'^if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
+        if match:
+            condition = match.group(1).strip()
+            return f'if {condition}:'
+        
+        # ELSE (solo)
+        if line.lower().strip() == 'else':
+            return 'else:'
+        
+        # RETURN
+        match = re.match(r'^return\s+(.+)$', line, re.IGNORECASE)
+        if match:
+            expr = match.group(1).strip()
+            return f'return {expr}'
+        
+        # Llamadas a funciones en mayúscula (ej: PARTITION(A, p, r))
+        # Convertir a minúscula con guiones bajos
+        def replace_func_call(m):
+            func_name = m.group(1).replace('-', '_').lower()
+            args = m.group(2)
+            return f'{func_name}({args})'
+        
+        line = re.sub(r'\b([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)', replace_func_call, line)
+        
+        # Asignación simple (ya convertida ← a =)
+        # No necesita más procesamiento
+        
+        return line
+
+    def _normalize_indentation(self, lines: list) -> str:
+        """
+        Normaliza la indentación del código Python generado.
+        Convierte la indentación basada en espacios del pseudocódigo
+        a indentación Python estándar de 4 espacios.
+        """
+        result = []
+        indent_stack = [0]  # Pila de niveles de indentación
+        
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                result.append('')
+                continue
+            
+            # Calcular indentación actual
+            current_indent = len(line) - len(line.lstrip())
+            
+            # Determinar el nivel de indentación Python
+            # Comparar con el nivel anterior
+            while indent_stack and current_indent < indent_stack[-1]:
+                indent_stack.pop()
+            
+            if current_indent > indent_stack[-1]:
+                indent_stack.append(current_indent)
+            
+            # Calcular nivel Python (cada nivel = 4 espacios)
+            python_level = len(indent_stack) - 1
+            python_indent = '    ' * python_level
+            
+            result.append(python_indent + stripped)
+        
+        return '\n'.join(result)
+
+    def _heuristic_translate(self, pseudocodigo: str) -> str:
+        """Fallback - usa el nuevo traductor."""
+        return self._translate_pseudocode_to_python(pseudocodigo)

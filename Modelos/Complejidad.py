@@ -10,12 +10,13 @@ class Complejidad:
     Almacena el resultado del análisis de complejidad.
     Mapea la clase 'Complejidad' del diagrama UML.
     """
-    def __init__(self, id: int, notacion_o: str, notacion_omega: str, notacion_theta: str, justificacion: str):
+    def __init__(self, id: int, notacion_o: str, notacion_omega: str, notacion_theta: str, justificacion: str, justification_data: dict = None):
         self._id = id
         self._notacion_o = notacion_o
         self._notacion_omega = notacion_omega
         self._notacion_theta = notacion_theta
         self._justificacion_matematica = justificacion
+        self._justification_data = justification_data or {}
         self._analizador: Optional[Analizador] = None
         self._reporte: Optional[Reporte] = None
 
@@ -58,6 +59,14 @@ class Complejidad:
     @justificacion_matematica.setter
     def justificacion_matematica(self, value: str):
         self._justificacion_matematica = value
+
+    @property
+    def justification_data(self) -> dict:
+        return self._justification_data
+
+    @justification_data.setter
+    def justification_data(self, value: dict):
+        self._justification_data = value
 
     @property
     def analizador(self) -> Optional[Analizador]:

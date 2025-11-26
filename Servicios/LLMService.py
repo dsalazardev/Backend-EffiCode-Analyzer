@@ -166,7 +166,10 @@ class LLMService:
             )
             return response.text.strip()
         except Exception as e:
-            return f"Error al contactar la API de Gemini: {e}"
+            # Devolver un marcador estándar para que el parser lo detecte
+            err_msg = f"Error al contactar la API de Gemini: {e}"
+            print(err_msg)
+            return f"# Error: {err_msg}"
 
 
     def traducir_pseudocodigo_a_python(self, pseudocodigo: str) -> str:
