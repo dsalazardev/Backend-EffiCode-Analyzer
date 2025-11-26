@@ -93,16 +93,15 @@ def ejecutar_analisis_completo():
 
 
     pseudocodigo = """
-    POWER(x, n)
-        if n = 0 then
-            return 1
-        if n mod 2 = 0 then
-            y ← POWER(x, n div 2)
-            return y * y
-        else
-            return x * POWER(x, n - 1)
-    """
-
+POWER(x, n)
+    if n = 0 then
+        return 1
+    if n mod 2 = 0 then
+        y ← POWER(x, n div 2)
+        return y * y
+    else
+        return x * POWER(x, n - 1)
+"""
     print("\n--- [PASO 1] Analizando el siguiente Pseudocódigo ---")
     print(pseudocodigo)
 

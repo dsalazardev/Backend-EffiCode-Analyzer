@@ -180,10 +180,24 @@ class Parser:
         line = line.replace('≤', '<=')
         line = line.replace('≥', '>=')
         line = line.replace('≠', '!=')
-        line = line.replace('←', '=')
+        
+        # Reemplazar operadores matemáticos Cormen → Python
+        line = re.sub(r'\bmod\b', '%', line, flags=re.IGNORECASE)
+        line = re.sub(r'\bdiv\b', '//', line, flags=re.IGNORECASE)
         
         # Reemplazar guiones en propiedades de objetos (A.heap-size → A.heap_size)
         line = re.sub(r'\.(\w+)-(\w+)', r'.\1_\2', line)
+        
+        # Convertir llamadas a funciones en MAYÚSCULAS a minúsculas (ANTES de procesar estructuras)
+        def replace_func_call(m):
+            func_name = m.group(1).replace('-', '_').lower()
+            args = m.group(2)
+            return f'{func_name}({args})'
+        
+        line = re.sub(r'\b([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)', replace_func_call, line)
+        
+        # Ahora reemplazar ← por = (asignación)
+        line = line.replace('←', '=')
         
         # EXCHANGE A[i] WITH A[j] → intercambio con tuplas
         match = re.match(r'^exchange\s+(.+?)\s+with\s+(.+?)\s*$', line, re.IGNORECASE)
@@ -216,40 +230,38 @@ class Parser:
         # WHILE ... DO
         match = re.match(r'^while\s+(.+?)\s+do\s*$', line, re.IGNORECASE)
         if match:
-            condition = match.group(1).strip()
+            condition = self._fix_comparison_operators(match.group(1).strip())
             return f'while {condition}:'
         
         # IF ... THEN (con then explícito)
         match = re.match(r'^if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
         if match:
-            condition = match.group(1).strip()
+            condition = self._fix_comparison_operators(match.group(1).strip())
             return f'if {condition}:'
         
-        # IF ... (sin then - detectar si la condición termina sin otra palabra clave)
-        # Solo si la línea empieza con "if" y no tiene "then"
+        # IF ... (sin then)
         match = re.match(r'^if\s+(.+?)\s*$', line, re.IGNORECASE)
         if match and 'then' not in line.lower():
-            condition = match.group(1).strip()
-            # Evitar falsos positivos si termina en una asignación
+            condition = self._fix_comparison_operators(match.group(1).strip())
             if '=' not in condition or '<=' in condition or '>=' in condition or '!=' in condition or '==' in condition:
                 return f'if {condition}:'
         
         # ELSE IF ... THEN
         match = re.match(r'^else\s*if\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
         if match:
-            condition = match.group(1).strip()
+            condition = self._fix_comparison_operators(match.group(1).strip())
             return f'elif {condition}:'
         
         # ELSEIF / ELSIF (variantes sin espacio)
         match = re.match(r'^(?:elseif|elsif)\s+(.+?)\s+then\s*$', line, re.IGNORECASE)
         if match:
-            condition = match.group(1).strip()
+            condition = self._fix_comparison_operators(match.group(1).strip())
             return f'elif {condition}:'
         
         # ELSE IF ... (sin then)
         match = re.match(r'^else\s*if\s+(.+?)\s*$', line, re.IGNORECASE)
         if match and 'then' not in line.lower():
-            condition = match.group(1).strip()
+            condition = self._fix_comparison_operators(match.group(1).strip())
             return f'elif {condition}:'
         
         # ELSE (solo)
@@ -266,22 +278,22 @@ class Parser:
         if line.lower().strip() == 'return':
             return 'return'
         
-        # Llamada a función sola en la línea (ej: QUICKSORT(A, p, q - 1))
-        match = re.match(r'^([A-Z][A-Z0-9_-]*)\s*\((.+)\)\s*$', line)
+        # Llamada a función sola en la línea
+        match = re.match(r'^([a-z][a-z0-9_]*)\s*\((.+)\)\s*$', line)
         if match:
-            func_name = match.group(1).replace('-', '_').lower()
+            func_name = match.group(1)
             args = match.group(2)
             return f'{func_name}({args})'
         
-        # Convertir llamadas a funciones en MAYÚSCULAS dentro de expresiones
-        def replace_func_call(m):
-            func_name = m.group(1).replace('-', '_').lower()
-            args = m.group(2)
-            return f'{func_name}({args})'
-        
-        line = re.sub(r'\b([A-Z][A-Z0-9_-]*)\s*\(([^)]*)\)', replace_func_call, line)
-        
         return line
+
+    def _fix_comparison_operators(self, condition: str) -> str:
+        """
+        Convierte = a == en condiciones (en Cormen = es comparación).
+        """
+        # Reemplazar = simple por == (pero no <=, >=, !=, ==)
+        result = re.sub(r'(?<![<>!=])=(?!=)', '==', condition)
+        return result
 
     def _normalize_indentation(self, lines: list) -> str:
         """

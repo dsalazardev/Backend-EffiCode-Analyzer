@@ -41,7 +41,7 @@ class LLMService:
     _RUTA_LIBRO = _ROOT / "Documentos" / "Introduction_to_Algorithms_by_Thomas_H_Coremen.pdf"
     _CACHE_FILE = _ROOT / "cache_file.json"
 
-    def __init__(self, modelo: str = "gemini-2.5-flash"):
+    def __init__(self, modelo: str = "gemini-2.5-pro"):
 
         """
         Inicializa el servicio LLM, configura el cliente de la API y gestiona la carga
